@@ -25,7 +25,7 @@
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
-
+#include <math.h>
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "../../../Drivers/BSP/STM32L476G-Discovery/stm32l476g_discovery_qspi.h"
@@ -36,7 +36,24 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+#define ACC_SENSITIVITY  0.0061
+#define ACC_ALPHA 0.98
+#define GYRO_SENSITIVITY 0.0175
+#define GYRO_ALPHA 0.98
+//float acc[3] = {0.0f, 0.0f, 0.0f};
+//float gyro[3] = {0.0f, 0.0f, 0.0f};
 
+float accX = 0.0f;
+float accY = 0.0f;
+float accZ = 0.0f;
+
+float gyroX = 0.0f;
+float gyroY = 0.0f;
+float gyroZ = 0.0f;
+
+float angX = 0.0f;
+float angY = 0.0f;
+float angZ = 0.0f;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -78,18 +95,8 @@ int main(void)
 	uint32_t address = 0;
 	//uint16_t index;
 	uint16_t flag = 0;
-	float accRaw[3];
-	accRaw[0] = 0.0f;
-	accRaw[1] = 0.0f;
-	accRaw[2] = 0.0f;
-	float gyro[3];
-	gyro[0] = 0.0f;
-	gyro[1] = 0.0f;
-	gyro[2] = 0.0f;
-	int16_t acc[3];
-	acc[0] = 0;
-	acc[1] = 0;
-	acc[2] = 0;
+	int16_t accRaw[3] = {0, 0, 0};
+	float gyroRaw[3]  = {0.0f, 0.0f, 0.0f};
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -152,20 +159,29 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-		BSP_GYRO_GetXYZ(gyro);
-		printf("Gyro: %f ", gyro[0]);
-		printf("%f ", gyro[1]);
-		printf("%f ", gyro[2]);
-		printf("\r\n");
-		BSP_COMPASS_AccGetXYZ(acc);
-		for (int i = 0; i < 3; ++i) {
-			accRaw[i] = (float)acc[i] * 0.00061;
-		}
-		printf("Acc: %f ", accRaw[0]);
-		printf("%f ", accRaw[1]);
-		printf("%f ", accRaw[2]);
-		printf("\r\n");
-		HAL_Delay(2000);
+		BSP_GYRO_GetXYZ(gyroRaw);
+		BSP_COMPASS_AccGetXYZ(accRaw);
+		gyroX = GYRO_ALPHA * gyroX + (1.0f - GYRO_ALPHA) * gyroRaw[0] * GYRO_SENSITIVITY;
+		gyroY = GYRO_ALPHA * gyroY + (1.0f - GYRO_ALPHA) * gyroRaw[1] * GYRO_SENSITIVITY;
+		gyroZ = GYRO_ALPHA * gyroZ + (1.0f - GYRO_ALPHA) * gyroRaw[2] * GYRO_SENSITIVITY;
+
+		accX = ACC_ALPHA * accX + (1.0f - ACC_ALPHA) * (float)accRaw[0] * ACC_SENSITIVITY;
+		accY = ACC_ALPHA * accY + (1.0f - ACC_ALPHA) * (float)accRaw[1] * ACC_SENSITIVITY;
+		accZ = ACC_ALPHA * accZ + (1.0f - ACC_ALPHA) * (float)accRaw[2] * ACC_SENSITIVITY;
+
+		angX = (float)((atan2(accY, accZ)) + M_PI ) * (180 / M_PI);
+		angY = (float)((atan2(accZ, accX)) + M_PI ) * (180 / M_PI);
+		angZ = (float)((atan2(accX, accY)) + M_PI ) * (180 / M_PI);
+//		gyro = gyroRaw[0] * GYRO_SENSITIVITY;
+//		gyro = gyroRaw[1] * GYRO_SENSITIVITY;
+//		gyro = gyroRaw[2] * GYRO_SENSITIVITY;
+//
+//
+//		accX = (float)accRaw[0] * ACC_SENSITIVITY;
+//		accY = (float)accRaw[1] * ACC_SENSITIVITY;
+//		accZ = (float)accRaw[2] * ACC_SENSITIVITY;
+
+		HAL_Delay(10);
 		/* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
