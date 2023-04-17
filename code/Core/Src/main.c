@@ -25,35 +25,19 @@
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
-#include <math.h>
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "../../../Drivers/BSP/STM32L476G-Discovery/stm32l476g_discovery_qspi.h"
-#include "../../../Drivers/BSP/STM32L476G-Discovery/stm32l476g_discovery_gyroscope.h"
-#include "../../../Drivers/BSP/STM32L476G-Discovery/stm32l476g_discovery_compass.h"
 #include <stdio.h>
+#include "imu.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-#define ACC_SENSITIVITY  0.0061
-#define ACC_ALPHA 0.98
-#define GYRO_SENSITIVITY 0.0175
-#define GYRO_ALPHA 0.98
-//float acc[3] = {0.0f, 0.0f, 0.0f};
-//float gyro[3] = {0.0f, 0.0f, 0.0f};
-
-float accX = 0.0f;
-float accY = 0.0f;
-float accZ = 0.0f;
-
-float gyroX = 0.0f;
-float gyroY = 0.0f;
-float gyroZ = 0.0f;
 
 float angX = 0.0f;
 float angY = 0.0f;
 float angZ = 0.0f;
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -77,7 +61,7 @@ uint8_t RxBuffer[COUNT(TxBuffer) - 1];
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-
+void IMU(float *angX, float *angY, float *angZ);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -95,8 +79,6 @@ int main(void)
 	uint32_t address = 0;
 	//uint16_t index;
 	uint16_t flag = 0;
-	int16_t accRaw[3] = {0, 0, 0};
-	float gyroRaw[3]  = {0.0f, 0.0f, 0.0f};
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -105,7 +87,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-
+  uint32_t historic = 0;
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -159,29 +141,18 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-		BSP_GYRO_GetXYZ(gyroRaw);
-		BSP_COMPASS_AccGetXYZ(accRaw);
-		gyroX = GYRO_ALPHA * gyroX + (1.0f - GYRO_ALPHA) * gyroRaw[0] * GYRO_SENSITIVITY;
-		gyroY = GYRO_ALPHA * gyroY + (1.0f - GYRO_ALPHA) * gyroRaw[1] * GYRO_SENSITIVITY;
-		gyroZ = GYRO_ALPHA * gyroZ + (1.0f - GYRO_ALPHA) * gyroRaw[2] * GYRO_SENSITIVITY;
+	  if(HAL_GetTick() - historic > 20){
+		historic = HAL_GetTick();
+		IMU(&angX, &angY, &angZ);
+  	  	}
 
-		accX = ACC_ALPHA * accX + (1.0f - ACC_ALPHA) * (float)accRaw[0] * ACC_SENSITIVITY;
-		accY = ACC_ALPHA * accY + (1.0f - ACC_ALPHA) * (float)accRaw[1] * ACC_SENSITIVITY;
-		accZ = ACC_ALPHA * accZ + (1.0f - ACC_ALPHA) * (float)accRaw[2] * ACC_SENSITIVITY;
-
-		angX = (float)((atan2(accY, accZ)) + M_PI ) * (180 / M_PI);
-		angY = (float)((atan2(accZ, accX)) + M_PI ) * (180 / M_PI);
-		angZ = (float)((atan2(accX, accY)) + M_PI ) * (180 / M_PI);
-//		gyro = gyroRaw[0] * GYRO_SENSITIVITY;
-//		gyro = gyroRaw[1] * GYRO_SENSITIVITY;
-//		gyro = gyroRaw[2] * GYRO_SENSITIVITY;
-//
-//
-//		accX = (float)accRaw[0] * ACC_SENSITIVITY;
-//		accY = (float)accRaw[1] * ACC_SENSITIVITY;
-//		accZ = (float)accRaw[2] * ACC_SENSITIVITY;
-
-		HAL_Delay(10);
+		//		gyroX = GYRO_ALPHA * gyroX + (1.0f - GYRO_ALPHA) * gyroRaw[0] * GYRO_SENSITIVITY;
+		//		gyroY = GYRO_ALPHA * gyroY + (1.0f - GYRO_ALPHA) * gyroRaw[1] * GYRO_SENSITIVITY;
+		//		gyroZ = GYRO_ALPHA * gyroZ + (1.0f - GYRO_ALPHA) * gyroRaw[2] * GYRO_SENSITIVITY;
+		//
+		//		accX = ACC_ALPHA * accX + (1.0f - ACC_ALPHA) * (float)accRaw[0] * ACC_SENSITIVITY;
+		//		accY = ACC_ALPHA * accY + (1.0f - ACC_ALPHA) * (float)accRaw[1] * ACC_SENSITIVITY;
+		//		accZ = ACC_ALPHA * accZ + (1.0f - ACC_ALPHA) * (float)accRaw[2] * ACC_SENSITIVITY;
 		/* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -258,6 +229,32 @@ int _write(int file, char *ptr, int len){
 
 	return len;
 }
+//void IMU(float *angX, float *angY, float *angZ) {
+//	int16_t accRaw[3] = {0, 0, 0};
+//	float gyroRaw[3]  = {0.0f, 0.0f, 0.0f};
+//
+//	BSP_GYRO_GetXYZ(gyroRaw);
+//	BSP_COMPASS_AccGetXYZ(accRaw);
+//	//raw to m/s^2
+//	float accX = (float)accRaw[0] * ACC_SENSITIVITY;
+//	float accY = (float)accRaw[1] * ACC_SENSITIVITY;
+//	float accZ = (float)accRaw[2] * ACC_SENSITIVITY;
+//
+//	//gyro values to degrees
+//	float gyroX = gyroRaw[0] * GYRO_SENSITIVITY * DT;
+//	float gyroY = gyroRaw[1] * GYRO_SENSITIVITY * DT;
+//	float gyroZ = gyroRaw[2] * GYRO_SENSITIVITY * DT;
+//
+//	//acc values to degrees
+//	float accAngX = (float)((atan2(accY, accZ)) + M_PI ) * (180 / M_PI);
+//	float accAngY = (float)((atan2(accZ, accX)) + M_PI ) * (180 / M_PI);
+//
+//	//complementary filtration and position calculation
+//	*angX = ALPHA * (gyroX * DT + angX) + (1.0f - ALPHA) * accAngX;
+//	*angY = ALPHA * (gyroY * DT + angY) + (1.0f - ALPHA) * accAngY;
+//	//roll filtration and calculation
+//	*angZ = ALPHA * (gyroZ * DT + angZ);
+//}
 /* USER CODE END 4 */
 
 /**
