@@ -34,16 +34,15 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
-float angX = 0.0f;
-float angY = 0.0f;
-float angZ = 0.0f;
-
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define QSPI_FLASH_SIZE                      23
 #define QSPI_PAGE_SIZE                       256
+#define PRECISION 							 0.000001f
+#define REMAP_OK							 0
+#define REMAP_ERROR							 1
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -56,12 +55,16 @@ float angZ = 0.0f;
 /* USER CODE BEGIN PV */
 uint8_t TxBuffer[] = "1234567890abcdefgh"; //
 uint8_t RxBuffer[COUNT(TxBuffer) - 1];
+
+float angX = 0.0f;
+float angY = 0.0f;
+float angZ = 0.0f;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-void IMU(float *angX, float *angY, float *angZ);
+uint8_t remap(float value, float *output, float min, float max, float r_min, float r_max);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -79,6 +82,7 @@ int main(void)
 	uint32_t address = 0;
 	//uint16_t index;
 	uint16_t flag = 0;
+	float angXremapped = 0.0f;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -144,6 +148,8 @@ int main(void)
 	  if(HAL_GetTick() - historic > 20){
 		historic = HAL_GetTick();
 		IMU(&angX, &angY, &angZ);
+		remap(angX, &angXremapped, 0.0f, 360.0f, -180.0f, 180.0f);
+		printf("%f -> %f\r\n", angX, angXremapped);
   	  	}
 
 		//		gyroX = GYRO_ALPHA * gyroX + (1.0f - GYRO_ALPHA) * gyroRaw[0] * GYRO_SENSITIVITY;
@@ -229,6 +235,28 @@ int _write(int file, char *ptr, int len){
 
 	return len;
 }
+
+
+
+/*
+min and max - base range
+r_min and r_max - range after remap
+*/
+uint8_t remap(float value, float *output, float min, float max, float r_min, float r_max)
+{
+	if (min > max) return REMAP_ERROR;
+	if (r_min > r_max) return REMAP_ERROR;
+
+    if ((max - min) <= PRECISION)
+    {
+        *output = (r_min + r_min)/2;
+        return REMAP_OK;
+    }
+
+    *output = (r_min + (r_max - r_min)*((value - min)/(max - min)));
+    return REMAP_OK;
+}
+
 //void IMU(float *angX, float *angY, float *angZ) {
 //	int16_t accRaw[3] = {0, 0, 0};
 //	float gyroRaw[3]  = {0.0f, 0.0f, 0.0f};
