@@ -45,7 +45,9 @@
 /* USER CODE BEGIN PD */
 #define QSPI_FLASH_SIZE 		23
 #define QSPI_PAGE_SIZE			256
-#define USART_DEBUG 			1 // 1 - print to usart, 0 - save to memory
+#define USART_DEBUG 			1 	// 1 - print to usart
+#define TEST_READ_AND_PRINT		1	// 1 - read data and print it
+#define BUFFER_SIZE 			128
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -56,10 +58,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint8_t TxBuffer[] = "1234567890abcdefgh"; //
-uint8_t TxBuffer2[] = "abcdefgh1234567890";
-uint8_t RxBuffer[COUNT(TxBuffer) - 1];
-uint8_t RxBuffer2[2*(COUNT(TxBuffer) - 1)];
+char DataBuffer[BUFFER_SIZE];
+uint8_t ReadBuffer[BUFFER_SIZE];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -83,14 +83,9 @@ int main(void)
 	uint32_t address = 0;
 	//uint16_t index;
 	uint16_t flag = 0;
-	float gyro[3];
-	gyro[0] = 0.0f;
-	gyro[1] = 0.0f;
-	gyro[2] = 0.0f;
-	int16_t acc[3];
-	acc[0] = 0;
-	acc[1] = 0;
-	acc[2] = 0;
+	uint32_t crc;
+	float gyro[3] = {0.0f, 0.0f, 0.0f};
+	int16_t acc[3] = {0, 0, 0};
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -132,49 +127,21 @@ int main(void)
 //  sCommand.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
 
   BSP_QSPI_Init();
+  printf("start czyszczenia pamieci\r\n");
+  if (BSP_QSPI_Erase_Chip() != QSPI_OK) {
+	  Error_Handler();
+  }
+  printf("koniec czyszczenia pamieci\r\n");
+  HAL_GPIO_WritePin(LD_G_GPIO_Port, LD_G_Pin, 1);
+  HAL_Delay(100);
+  HAL_GPIO_WritePin(LD_G_GPIO_Port, LD_G_Pin, 0);
+  HAL_Delay(900);
 
-  //BSP_QSPI_Erase_Chip();
-
-  // Test of QSPI memory write and read
-
-  BSP_QSPI_Write(TxBuffer, address, COUNT(TxBuffer) - 1);
-
-  //BSP_QSPI_Read(RxBuffer, address, COUNT(TxBuffer) - 1);
-
-  address += COUNT(TxBuffer) - 1;
-
-  BSP_QSPI_Write(TxBuffer2, address, COUNT(TxBuffer2) - 1);
-
-  BSP_QSPI_Read(RxBuffer2, 0, 2 * (COUNT(TxBuffer2) - 1));
-
-  address += COUNT(TxBuffer) - 1;
-
-	for (int i = 0; i < COUNT(TxBuffer) - 1; ++i) {
-		  if (RxBuffer2[i] == TxBuffer[i]) {
-			  flag++;
-		  }
-	}
-
-	HAL_Delay(3000);	// time for user to open debug terminal
-
-	//if (flag >=  (COUNT(TxBuffer) - 1)) {
-		HAL_GPIO_WritePin(LD_G_GPIO_Port, LD_G_Pin, 1);
-		HAL_Delay(100);
-		HAL_GPIO_WritePin(LD_G_GPIO_Port, LD_G_Pin, 0);
-		HAL_Delay(400);
-		HAL_GPIO_WritePin(LD_G_GPIO_Port, LD_G_Pin, 1);
-		HAL_Delay(100);
-		HAL_GPIO_WritePin(LD_G_GPIO_Port, LD_G_Pin, 0);
-		HAL_Delay(400);
-		printf("%s", RxBuffer2);
-		printf("\r\n");
-	//}
-
+	//HAL_Delay(3000);	// time for user to open debug terminal
 
 	BSP_GYRO_Init();
 	BSP_COMPASS_Init();
-	  char *data;
-	  uint32_t crc;
+
 
   /* USER CODE END 2 */
 
@@ -187,17 +154,15 @@ int main(void)
 
 	  BSP_GYRO_GetXYZ(gyro);
 	  BSP_COMPASS_AccGetXYZ(acc);
-	  asiprintf(&data, "X %f %f %f %d %d %d", gyro[0], gyro[1], gyro[2], acc[0], acc[1], acc[2]);
 
-	  #if 1
-	  crc = HAL_CRC_Calculate(&hcrc, (void*)data, strlen(data));
-	  printf("%s 0x%02x\r\n", data, crc);
+	  snprintf(DataBuffer, BUFFER_SIZE, "X %f %f %f %d %d %d", gyro[0], gyro[1], gyro[2], acc[0], acc[1], acc[2]);
+
+	  #if USART_DEBUG
+	  crc = HAL_CRC_Calculate(&hcrc, (void*)DataBuffer, strlen(DataBuffer));
+	  printf("%s 0x%02x\r\n", DataBuffer, crc);
 	  //#else
-	  printf("%s\r\n", data);
-	  BSP_QSPI_Write((uint8_t*)data, address, COUNT(data) - 1);	// write data to memory
-	  address += COUNT(data) - 1;
+	  BSP_QSPI_Write((uint8_t*)DataBuffer, address, BUFFER_SIZE);	// write data to memory
 	  #endif
-
 
 	  uint32_t endTime = HAL_GetTick();
 	  uint32_t elapsedTime = endTime-startTime;
@@ -205,6 +170,13 @@ int main(void)
 	  #if USART_DEBUG
 	  printf("%d \r\n", elapsedTime);
 	  #endif
+
+	  #if TEST_READ_AND_PRINT
+	  BSP_QSPI_Read(ReadBuffer, address, BUFFER_SIZE);
+	  printf("%s\r\n", ReadBuffer);
+	  #endif
+
+	  address += BUFFER_SIZE;
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
