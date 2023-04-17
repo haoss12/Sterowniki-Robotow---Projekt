@@ -47,6 +47,7 @@
 #define QSPI_PAGE_SIZE			256
 #define USART_DEBUG 			1 	// 1 - print to usart
 #define TEST_READ_AND_PRINT		1	// 1 - read data and print it
+#define TIME_COUNTING			1
 #define BUFFER_SIZE 			128
 /* USER CODE END PD */
 
@@ -117,27 +118,19 @@ int main(void)
 
   // write example data to flash memory
 
-//  QSPI_CommandTypeDef s_command;
-//
-//  sCommand.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
-//  sCommand.AddressSize       = QSPI_ADDRESS_24_BITS;
-//  sCommand.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
-//  sCommand.DdrMode           = QSPI_DDR_MODE_DISABLE;
-//  sCommand.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;
-//  sCommand.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
-
   BSP_QSPI_Init();
-  printf("start czyszczenia pamieci\r\n");
+  printf("Memory and USART Test\r\n");
+  printf("Start of memory erasing\r\n");
   if (BSP_QSPI_Erase_Chip() != QSPI_OK) {
 	  Error_Handler();
   }
-  printf("koniec czyszczenia pamieci\r\n");
+  printf("End of memory erasing\r\n");
+
+  //status on board
   HAL_GPIO_WritePin(LD_G_GPIO_Port, LD_G_Pin, 1);
   HAL_Delay(100);
   HAL_GPIO_WritePin(LD_G_GPIO_Port, LD_G_Pin, 0);
   HAL_Delay(900);
-
-	//HAL_Delay(3000);	// time for user to open debug terminal
 
 	BSP_GYRO_Init();
 	BSP_COMPASS_Init();
@@ -150,24 +143,26 @@ int main(void)
   while (1)
   {
 	  HAL_Delay(1000);
+	  #if TIME_COUNTING
 	  uint32_t startTime = HAL_GetTick();
+	  #endif
 
 	  BSP_GYRO_GetXYZ(gyro);
 	  BSP_COMPASS_AccGetXYZ(acc);
 
 	  snprintf(DataBuffer, BUFFER_SIZE, "X %f %f %f %d %d %d", gyro[0], gyro[1], gyro[2], acc[0], acc[1], acc[2]);
+	  crc = HAL_CRC_Calculate(&hcrc, (void*)DataBuffer, strlen(DataBuffer));
+	  snprintf(DataBuffer, BUFFER_SIZE, "%s 0x%02x\r\n", DataBuffer, crc);
 
 	  #if USART_DEBUG
-	  crc = HAL_CRC_Calculate(&hcrc, (void*)DataBuffer, strlen(DataBuffer));
-	  printf("%s 0x%02x\r\n", DataBuffer, crc);
+	  printf("%s", DataBuffer);
 	  //#else
 	  BSP_QSPI_Write((uint8_t*)DataBuffer, address, BUFFER_SIZE);	// write data to memory
 	  #endif
 
+	  #if TIME_COUNTING
 	  uint32_t endTime = HAL_GetTick();
 	  uint32_t elapsedTime = endTime-startTime;
-
-	  #if USART_DEBUG
 	  printf("%d \r\n", elapsedTime);
 	  #endif
 
