@@ -25,6 +25,7 @@
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
@@ -64,7 +65,7 @@ float angZ = 0.0f;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-uint8_t remap(float value, float *output, float min, float max, float r_min, float r_max);
+static inline void remap(float value, float *output, float min, float max, float r_min, float r_max);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -83,6 +84,9 @@ int main(void)
 	//uint16_t index;
 	uint16_t flag = 0;
 	float angXremapped = 0.0f;
+	float angYremapped = 0.0f;
+	float angXremappedN = 0.0f;
+	float angYremappedN = 0.0f;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -110,7 +114,11 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_TIM_Base_Start_IT(&htim2);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
   // write example data to flash memory
 
 //  QSPI_CommandTypeDef s_command;
@@ -145,12 +153,20 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  if(HAL_GetTick() - historic > 20){
+	  if(HAL_GetTick() - historic > 50){
 		historic = HAL_GetTick();
 		IMU(&angX, &angY, &angZ);
-		remap(angX, &angXremapped, 0.0f, 360.0f, -180.0f, 180.0f);
-		printf("%f -> %f\r\n", angX, angXremapped);
-  	  	}
+		remap(angX, &angXremapped, 0, 360, 160, 800);
+		remap(angY, &angYremapped, 0, 360, 160, 800);
+		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, angXremapped);
+		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 800-angXremapped);
+		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, angYremapped);
+		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 800-angYremapped);
+
+		}
+//		IMU(&angX, &angY, &angZ);
+//		remap(angX, &angXremapped, 0.0f, 360.0f, -180.0f, 180.0f);
+//		printf("%f -> %f\r\n", angX, angXremapped);
 
 		//		gyroX = GYRO_ALPHA * gyroX + (1.0f - GYRO_ALPHA) * gyroRaw[0] * GYRO_SENSITIVITY;
 		//		gyroY = GYRO_ALPHA * gyroY + (1.0f - GYRO_ALPHA) * gyroRaw[1] * GYRO_SENSITIVITY;
@@ -159,7 +175,7 @@ int main(void)
 		//		accX = ACC_ALPHA * accX + (1.0f - ACC_ALPHA) * (float)accRaw[0] * ACC_SENSITIVITY;
 		//		accY = ACC_ALPHA * accY + (1.0f - ACC_ALPHA) * (float)accRaw[1] * ACC_SENSITIVITY;
 		//		accZ = ACC_ALPHA * accZ + (1.0f - ACC_ALPHA) * (float)accRaw[2] * ACC_SENSITIVITY;
-		/* USER CODE END WHILE */
+    /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
   }
@@ -236,26 +252,21 @@ int _write(int file, char *ptr, int len){
 	return len;
 }
 
+static inline void remap(float value, float *output, float min, float max, float r_min, float r_max)
+{
+    if (fabs(max - min) <= PRECISION)
+    {
+        *output = (r_min + r_min)/2;
+    }
 
+    *output = (r_min + (r_max - r_min)*(value - min)/(max - min));
+}
 
 /*
 min and max - base range
 r_min and r_max - range after remap
 */
-uint8_t remap(float value, float *output, float min, float max, float r_min, float r_max)
-{
-	if (min > max) return REMAP_ERROR;
-	if (r_min > r_max) return REMAP_ERROR;
 
-    if ((max - min) <= PRECISION)
-    {
-        *output = (r_min + r_min)/2;
-        return REMAP_OK;
-    }
-
-    *output = (r_min + (r_max - r_min)*((value - min)/(max - min)));
-    return REMAP_OK;
-}
 
 //void IMU(float *angX, float *angY, float *angZ) {
 //	int16_t accRaw[3] = {0, 0, 0};

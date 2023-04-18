@@ -9,7 +9,7 @@
 #define ACC_SENSITIVITY  0.0061
 #define GYRO_SENSITIVITY 0.0175
 #define ALPHA 0.98		//filtration rate
-#define DT 0.02			//time tick
+#define DT 0.05			//time tick
 
 void IMU(float *angX, float *angY, float *angZ);
 
