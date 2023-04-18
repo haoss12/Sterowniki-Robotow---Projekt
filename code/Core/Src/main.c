@@ -83,6 +83,7 @@ int main(void)
 	uint32_t address = 0;
 	//uint16_t index;
 	uint16_t flag = 0;
+	uint8_t j = 0;
 	float angXremapped = 0.0f;
 	float angYremapped = 0.0f;
 	float angXremappedN = 0.0f;
@@ -119,21 +120,42 @@ int main(void)
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
-  // write example data to flash memory
 
-//  QSPI_CommandTypeDef s_command;
-//
-//  sCommand.InstructionMode   = QSPI_INSTRUCTION_1_LINE;
-//  sCommand.AddressSize       = QSPI_ADDRESS_24_BITS;
-//  sCommand.AlternateByteMode = QSPI_ALTERNATE_BYTES_NONE;
-//  sCommand.DdrMode           = QSPI_DDR_MODE_DISABLE;
-//  sCommand.DdrHoldHalfCycle  = QSPI_DDR_HHC_ANALOG_DELAY;
-//  sCommand.SIOOMode          = QSPI_SIOO_INST_EVERY_CMD;
+  HAL_Delay(1000);
+
+  //test of servos from -90 to 90 degrees
+
+for (int var = 160; var <= 800; var += 160) {
+	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, var);
+	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, var);
+	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, var);
+	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, var);
+	HAL_Delay(1000);
+}
+
+	// set servos in neutral position
+
+{
+	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 480);
+	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 480);
+	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 480);
+	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 480);
+}
+
+HAL_Delay(1000);
+
+	// time for IMU to start calculating correctly
+
+while(j < 100) {
+	IMU(&angX, &angY, &angZ);
+	++j;
+	HAL_Delay(50);
+}
 
   BSP_QSPI_Init();
 
   //BSP_QSPI_Erase_Chip();
-//soft i hard iron
+
   BSP_QSPI_Write(TxBuffer, address, COUNT(TxBuffer) - 1);
 
   BSP_QSPI_Read(RxBuffer, address, COUNT(TxBuffer) - 1);
@@ -156,17 +178,18 @@ int main(void)
 	  if(HAL_GetTick() - historic > 50){
 		historic = HAL_GetTick();
 		IMU(&angX, &angY, &angZ);
-		remap(angX, &angXremapped, 0, 360, 160, 800);
-		remap(angY, &angYremapped, 0, 360, 160, 800);
+		angY -= 90.0f;
+		remap(angX, &angXremapped, 90.0, 270.0, 160.0, 800.0);
+		remap(angY, &angYremapped, 90.0, 270.0, 160.0, 800.0);
+		remap(angX, &angXremappedN, 90.0, 270.0, 800.0, 160.0);
+		remap(angY, &angYremappedN, 90.0, 270.0, 800.0, 160.0);
+		angY += 90.0f;
 		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, angXremapped);
-		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 800-angXremapped);
+		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, angXremappedN);
 		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, angYremapped);
-		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 800-angYremapped);
+		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, angYremappedN);
 
 		}
-//		IMU(&angX, &angY, &angZ);
-//		remap(angX, &angXremapped, 0.0f, 360.0f, -180.0f, 180.0f);
-//		printf("%f -> %f\r\n", angX, angXremapped);
 
 		//		gyroX = GYRO_ALPHA * gyroX + (1.0f - GYRO_ALPHA) * gyroRaw[0] * GYRO_SENSITIVITY;
 		//		gyroY = GYRO_ALPHA * gyroY + (1.0f - GYRO_ALPHA) * gyroRaw[1] * GYRO_SENSITIVITY;
@@ -252,6 +275,10 @@ int _write(int file, char *ptr, int len){
 	return len;
 }
 
+/*
+min and max - base range
+r_min and r_max - range after remap
+*/
 static inline void remap(float value, float *output, float min, float max, float r_min, float r_max)
 {
     if (fabs(max - min) <= PRECISION)
@@ -260,12 +287,15 @@ static inline void remap(float value, float *output, float min, float max, float
     }
 
     *output = (r_min + (r_max - r_min)*(value - min)/(max - min));
+    if (r_max > r_min){
+        if (*output > r_max) *output = r_max;
+        else if (*output < r_min) *output = r_min;
+    }
+    if (r_min > r_max){
+        if (*output > r_min) *output = r_min;
+        else if (*output < r_max) *output = r_max;
+    }
 }
-
-/*
-min and max - base range
-r_min and r_max - range after remap
-*/
 
 
 //void IMU(float *angX, float *angY, float *angZ) {
