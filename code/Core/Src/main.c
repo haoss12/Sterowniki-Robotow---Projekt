@@ -45,9 +45,9 @@
 /* USER CODE BEGIN PD */
 #define QSPI_FLASH_SIZE 		23
 #define QSPI_PAGE_SIZE			256
-#define USART_DEBUG 			1 	// 1 - print to usart
-#define TEST_READ_AND_PRINT		1	// 1 - read data and print it
-#define TIME_COUNTING			1
+#define USART_DEBUG 			1	// 1 - print to usart
+#define TEST_READ_AND_PRINT		0	// 1 - read data and print it
+#define TIME_COUNTING			0
 #define BUFFER_SIZE 			128
 /* USER CODE END PD */
 
@@ -118,13 +118,13 @@ int main(void)
 
   // write example data to flash memory
 
-  BSP_QSPI_Init();
-  printf("Memory and USART Test\r\n");
-  printf("Start of memory erasing\r\n");
-  if (BSP_QSPI_Erase_Chip() != QSPI_OK) {
-	  Error_Handler();
-  }
-  printf("End of memory erasing\r\n");
+//  BSP_QSPI_Init();
+//  printf("Memory and USART Test\r\n");
+//  printf("Start of memory erasing\r\n");
+//  if (BSP_QSPI_Erase_Chip() != QSPI_OK) {
+//	  Error_Handler();
+//  }
+//  printf("End of memory erasing\r\n");
 
   //status on board
   HAL_GPIO_WritePin(LD_G_GPIO_Port, LD_G_Pin, 1);
@@ -135,14 +135,13 @@ int main(void)
 	BSP_GYRO_Init();
 	BSP_COMPASS_Init();
 
-
+	// grupa 3
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  HAL_Delay(1000);
 	  #if TIME_COUNTING
 	  uint32_t startTime = HAL_GetTick();
 	  #endif
@@ -156,9 +155,10 @@ int main(void)
 
 	  #if USART_DEBUG
 	  printf("%s", DataBuffer);
-	  //#else
-	  BSP_QSPI_Write((uint8_t*)DataBuffer, address, BUFFER_SIZE);	// write data to memory
 	  #endif
+
+	  //BSP_QSPI_Write((uint8_t*)DataBuffer, address, BUFFER_SIZE);	// write data to memory
+
 
 	  #if TIME_COUNTING
 	  uint32_t endTime = HAL_GetTick();
@@ -168,10 +168,11 @@ int main(void)
 
 	  #if TEST_READ_AND_PRINT
 	  BSP_QSPI_Read(ReadBuffer, address, BUFFER_SIZE);
-	  printf("%s\r\n", ReadBuffer);
+	  printf("%s", ReadBuffer);
 	  #endif
 
-	  address += BUFFER_SIZE;
+	  //address += BUFFER_SIZE;
+	  HAL_Delay(200);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
