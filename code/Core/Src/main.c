@@ -30,6 +30,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include "imu.h"
+#include "madgwick.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -60,6 +61,16 @@ uint8_t RxBuffer[COUNT(TxBuffer) - 1];
 float angX = 0.0f;
 float angY = 0.0f;
 float angZ = 0.0f;
+
+float quat[4] = {1.0f, 0.0f, 0.0f, 0.0f};
+RPY euler;
+
+float g[3];
+float a[3];
+float m[3];
+int16_t a_temp[3];
+int16_t m_temp[3];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -88,6 +99,7 @@ int main(void)
 	float angYremapped = 0.0f;
 	float angXremappedN = 0.0f;
 	float angYremappedN = 0.0f;
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -142,15 +154,21 @@ for (int var = 160; var <= 800; var += 160) {
 	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 480);
 }
 
+b_x = 1.0f;
+b_z = 0.0f;
+gyroBias[0] = 0.0f;
+gyroBias[1] = 0.0f;
+gyroBias[2] = 0.0f;
+
 HAL_Delay(1000);
 
 	// time for IMU to start calculating correctly
 
-while(j < 100) {
-	IMU(&angX, &angY, &angZ);
-	++j;
-	HAL_Delay(50);
-}
+//while(j < 100) {
+//	IMU(&angX, &angY, &angZ);
+//	++j;
+//	HAL_Delay(50);
+//}
 
   BSP_QSPI_Init();
 
@@ -177,27 +195,40 @@ while(j < 100) {
   {
 	  if(HAL_GetTick() - historic > 50){
 		historic = HAL_GetTick();
-		IMU(&angX, &angY, &angZ);
-		angY -= 90.0f;
-		remap(angX, &angXremapped, 90.0, 270.0, 160.0, 800.0);
-		remap(angY, &angYremapped, 90.0, 270.0, 160.0, 800.0);
-		remap(angX, &angXremappedN, 90.0, 270.0, 800.0, 160.0);
-		remap(angY, &angYremappedN, 90.0, 270.0, 800.0, 160.0);
-		angY += 90.0f;
-		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, angXremapped);
-		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, angXremappedN);
-		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, angYremapped);
-		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, angYremappedN);
+		//IMU(&angX, &angY, &angZ);
+		BSP_GYRO_GetXYZ(g);
+		BSP_COMPASS_AccGetXYZ(a_temp);
+		BSP_COMPASS_MagGetXYZ(m_temp);
+		a[0] = (float)a_temp[0];
+		a[1] = (float)a_temp[1];
+		a[2] = (float)a_temp[2];
+
+		m[0] = (float)m_temp[0];
+		m[1] = (float)m_temp[1];
+		m[2] = (float)m_temp[2];
+
+		g[0] = g[0] * GYRO_SENSITIVITY * M_PI / 180.0f * delta;
+		g[1] = g[1] * GYRO_SENSITIVITY * M_PI / 180.0f * delta;
+		g[2] = g[2] * GYRO_SENSITIVITY * M_PI / 180.0f * delta;
+
+		updateQuat(g, a, m, quat);
+		quat2rpy(quat, &euler);
+
+		printf("euler: r - %f, p - %f, y - %f \r\n", euler.roll * (180.0 / M_PI), euler.pitch * (180.0 / M_PI), euler.yaw * (180.0 / M_PI));
+//		printf("quat:  w - %f, x - %f, y - %f, z - %f \r\n", quat[0], quat[1], quat[2], quat[3]);
+//		angY -= 90.0f;
+//		remap(angX, &angXremapped, 90.0, 270.0, 160.0, 800.0);
+//		remap(angY, &angYremapped, 90.0, 270.0, 160.0, 800.0);
+//		remap(angX, &angXremappedN, 90.0, 270.0, 800.0, 160.0);
+//		remap(angY, &angYremappedN, 90.0, 270.0, 800.0, 160.0);
+//		angY += 90.0f;
+//		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, angXremapped);
+//		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, angXremappedN);
+//		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, angYremapped);
+//		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, angYremappedN);
 
 		}
 
-		//		gyroX = GYRO_ALPHA * gyroX + (1.0f - GYRO_ALPHA) * gyroRaw[0] * GYRO_SENSITIVITY;
-		//		gyroY = GYRO_ALPHA * gyroY + (1.0f - GYRO_ALPHA) * gyroRaw[1] * GYRO_SENSITIVITY;
-		//		gyroZ = GYRO_ALPHA * gyroZ + (1.0f - GYRO_ALPHA) * gyroRaw[2] * GYRO_SENSITIVITY;
-		//
-		//		accX = ACC_ALPHA * accX + (1.0f - ACC_ALPHA) * (float)accRaw[0] * ACC_SENSITIVITY;
-		//		accY = ACC_ALPHA * accY + (1.0f - ACC_ALPHA) * (float)accRaw[1] * ACC_SENSITIVITY;
-		//		accZ = ACC_ALPHA * accZ + (1.0f - ACC_ALPHA) * (float)accRaw[2] * ACC_SENSITIVITY;
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
