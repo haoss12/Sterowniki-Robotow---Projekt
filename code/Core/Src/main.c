@@ -64,6 +64,7 @@ float angZ = 0.0f;
 
 float quat[4] = {1.0f, 0.0f, 0.0f, 0.0f};
 RPY euler;
+float r, p, y;
 
 float g[3];
 float a[3];
@@ -99,6 +100,7 @@ int main(void)
 	float angYremapped = 0.0f;
 	float angXremappedN = 0.0f;
 	float angYremappedN = 0.0f;
+	const int sample_time = delta * 1000;
 
   /* USER CODE END 1 */
 
@@ -137,13 +139,13 @@ int main(void)
 
   //test of servos from -90 to 90 degrees
 
-for (int var = 160; var <= 800; var += 160) {
-	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, var);
-	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, var);
-	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, var);
-	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, var);
-	HAL_Delay(1000);
-}
+//for (int var = 160; var <= 800; var += 160) {
+//	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, var);
+//	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, var);
+//	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, var);
+//	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, var);
+//	HAL_Delay(1000);
+//}
 
 	// set servos in neutral position
 
@@ -159,6 +161,10 @@ b_z = 0.0f;
 gyroBias[0] = 0.0f;
 gyroBias[1] = 0.0f;
 gyroBias[2] = 0.0f;
+
+r = 0.0f;
+p = 0.0f;
+y = 0.0f;
 
 HAL_Delay(1000);
 
@@ -193,7 +199,7 @@ HAL_Delay(1000);
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  if(HAL_GetTick() - historic > 50){
+	  if(HAL_GetTick() - historic > sample_time){
 		historic = HAL_GetTick();
 		//IMU(&angX, &angY, &angZ);
 		BSP_GYRO_GetXYZ(g);
@@ -213,7 +219,10 @@ HAL_Delay(1000);
 
 		updateQuat(g, a, m, quat);
 		quat2rpy(quat, &euler);
-
+		r = euler.roll 	* (180.0 / M_PI);
+		p = euler.pitch * (180.0 / M_PI);
+		y = euler.yaw 	* (180.0 / M_PI);
+//		printf("%f, %f, %f \r\n", g[0] * GYRO_SENSITIVITY, g[1] * GYRO_SENSITIVITY, g[2] * GYRO_SENSITIVITY);
 		printf("euler: r - %f, p - %f, y - %f \r\n", euler.roll * (180.0 / M_PI), euler.pitch * (180.0 / M_PI), euler.yaw * (180.0 / M_PI));
 //		printf("quat:  w - %f, x - %f, y - %f, z - %f \r\n", quat[0], quat[1], quat[2], quat[3]);
 //		angY -= 90.0f;

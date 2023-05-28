@@ -12,9 +12,9 @@
 #include <inttypes.h>
 
 //defined constants
-#define delta 0.05f 							//sampling time
-#define gyroError M_PI * (6.0f / 180.0f) 	//gyroscope error in rad/s (5 deg/s)
-#define gyroDrift M_PI * (1.0f / 180.0f)	//gyroscope drift in rad/s^2 (0.2 deg/s^2)
+#define delta 0.01f 							//sampling time
+#define gyroError 5.1 //10.19957562	//M_PI * (6.0f / 180.0f) 	//gyroscope error in rad/s (5 deg/s)
+#define gyroDrift 0.09804329484f	//M_PI * (1.0f / 180.0f)	//gyroscope drift in rad/s^2 (0.2 deg/s^2) 0,09804329484
 #define beta sqrt(3.0f / 4.0f) * gyroError
 #define zeta sqrt(3.0f / 4.0f) * gyroDrift
 
