@@ -7,128 +7,122 @@
 
 #include "madgwick.h"
 
-void updateQuat(float *gyro, float *acc, float *mag, float *estQuat) {
+static float invSqrt(float x) // Quake :)
+{
+    float halfx = 0.5f * x;
+    float y = x;
+    long i = *(long*)&y;
+    i = 0x5f3759df - (i >> 1);
+    y = *(float*)&i;
+    y = y * (1.5f - (halfx * y * y));
+    return y;
+}
 
-	float norm;	// variable to normalize vectors
-	float QuatDotOmega[4];	// quaternion rate from gyroscope elements (angular - omega)
-	float f[6];	// objective function
-	float 	J11_24, J12_23, J13_22, J14_21, J32, J33, J41, J42,
-			J43, J44, J51, J52, J53, J54, J61, J62, J63, J64;	// jacobian elements, some are the same but with opposite sign, so to save memory it get squashed
-	float QuatHatDot[4];	// estimated direction of gyroscope error
-	float gyroErr[3];	// estimated angular direction of gyroscope error
-	float h[3];	// flux in the earth frame
+void updateQuat(float *gyro, float *acc, float *mag /*, float *estQuat*/) {
 
-	float twob_x = 2.0f * b_x;
-	float twob_z = 2.0f * b_z;
-	float halfEstQuat[4];
-	float twoEstQuat[4];
-	float twob_xEstQuat[4];
-	float twob_zEstQuat[4];
-	float twomag[3];
+    float recipNorm;
+    float s0, s1, s2, s3;
+    Quaternion qDot;
+    float hx, hy;
+    float _2qwmx, _2qwmy, _2qwmz, _2qxmx, _2bx, _2bz, _4bx, _4bz, _2qw, _2qx, _2qy, _2qz, _2qwqy, _2qyqz, qwqw, qwqx, qwqy, qwqz, qxqx, qxqy, qxqz, qyqy, qyqz, qzqz;
 
 
-	for (uint8_t i = 0; i < 4; ++i) { //i guess that compiler is going to unroll this loop
-		halfEstQuat[i] = 0.5f * estQuat[i];
-		twoEstQuat[i] = 2.0f * estQuat[i];
-		twob_xEstQuat[i] = twob_x * estQuat[i];
-		twob_zEstQuat[i] = twob_z * estQuat[i];
-	}
 
-	twomag[0] = 2.0f * mag[0];
-	twomag[1] = 2.0f * mag[1];
-	twomag[2] = 2.0f * mag[2];
+    // Rate of change of quaternion from gyroscope
+    qDot.w = 0.5f * (-q.x * gyro[0] - q.y * gyro[1] - q.z * gyro[2]);
+    qDot.x = 0.5f * (q.w * gyro[0] + q.y * gyro[2] - q.z * gyro[1]);
+    qDot.y = 0.5f * (q.w * gyro[1] - q.x * gyro[2] + q.z * gyro[0]);
+    qDot.z = 0.5f * (q.w * gyro[2] + q.x * gyro[1] - q.y * gyro[0]);
 
-	// accelerometer and magnetometer normalisation
+    // Compute feedback only if accelerometer measurement valid (avoids NaN in accelerometer normalisation)
+    if (!((acc[0] == 0.0f) && (acc[1] == 0.0f) && (acc[2] == 0.0f))) {
 
-	norm = 1.0f / sqrtf(acc[0] * acc[0] + acc[1] * acc[1] + acc[2] * acc[2]);
-	acc[0] *= norm;
-	acc[1] *= norm;
-	acc[2] *= norm;
+        // Normalise accelerometer measurement
+        recipNorm = invSqrt(acc[0] * acc[0] + acc[1] * acc[1] + acc[2] * acc[2]);
+        acc[0] *= recipNorm;
+        acc[1] *= recipNorm;
+        acc[2] *= recipNorm;
 
-	norm = 1.0f / sqrtf(mag[0] * mag[0] + mag[1] * mag[1] + mag[2] * mag[2]);
-	mag[0] *= norm;
-	mag[1] *= norm;
-	mag[2] *= norm;
+        // Normalise magnetometer measurement
+        recipNorm = invSqrt(mag[0] * mag[0] + mag[1] * mag[1] + mag[2] * mag[2]);
+        mag[0] *= recipNorm;
+        mag[1] *= recipNorm;
+        mag[2] *= recipNorm;
 
-	// calculation of objective function
-	f[0] = twoEstQuat[1] * estQuat[3] - twoEstQuat[0] * estQuat[2] - acc[0];
-	f[1] = twoEstQuat[0] * estQuat[1] - twoEstQuat[2] * estQuat[3] - acc[1];
-	f[2] = 1.0f - twoEstQuat[1] * estQuat[1] - twoEstQuat[2] * estQuat[2] - acc[2];
-	f[3] = twob_x * (0.5f - estQuat[2] * estQuat[2] - estQuat[3] * estQuat[3]) + twob_z * (estQuat[1] * estQuat[3] - estQuat[0] * estQuat[2]) - mag[0];
-	f[4] = twob_x * (estQuat[1] * estQuat[2] - estQuat[0] * estQuat[3]) + twob_z * (estQuat[0] * estQuat[1] + estQuat[2] * estQuat[3]) - mag[1];
-	f[5] = twob_x * (estQuat[1] * estQuat[3] + estQuat[0] * estQuat[2]) + twob_z * (0.5f - estQuat[1] * estQuat[1] - estQuat[2] - estQuat[2]) - mag[2];
+        // Auxiliary variables to avoid repeated arithmetic
+        _2qwmx = 2.0f * q.w * mag[0];
+        _2qwmy = 2.0f * q.w * mag[1];
+        _2qwmz = 2.0f * q.w * mag[2];
+        _2qxmx = 2.0f * q.x * mag[0];
+        _2qw = 2.0f * q.w;
+        _2qx = 2.0f * q.x;
+        _2qy = 2.0f * q.y;
+        _2qz = 2.0f * q.z;
+        _2qwqy = 2.0f * q.w * q.y;
+        _2qyqz = 2.0f * q.y * q.z;
+        qwqw = q.w * q.w;
+        qwqx = q.w * q.x;
+        qwqy = q.w * q.y;
+        qwqz = q.w * q.z;
+        qxqx = q.x * q.x;
+        qxqy = q.x * q.y;
+        qxqz = q.x * q.z;
+        qyqy = q.y * q.y;
+        qyqz = q.y * q.z;
+        qzqz = q.z * q.z;
 
-	J11_24 = twoEstQuat[2];
-	J12_23 = twoEstQuat[3];
-	J13_22 = twoEstQuat[0];
-	J14_21 = twoEstQuat[1];
-	J32 = 2.0f * twoEstQuat[1];
-	J33 = 2.0f * twoEstQuat[2];
-	J41 = twob_zEstQuat[2];
-	J42 = twob_zEstQuat[3];
-	J43 = 2.0f * twob_xEstQuat[2] + twob_xEstQuat[0];
-	J44 = 2.0f * twob_xEstQuat[3] - twob_xEstQuat[1];
-	J51 = twob_xEstQuat[3] - twob_xEstQuat[1];
-	J52 = twob_xEstQuat[2] + twob_xEstQuat[0];
-	J53 = twob_xEstQuat[1] + twob_xEstQuat[3];
-	J54 = twob_xEstQuat[0] - twob_xEstQuat[2];
-	J61 = twob_xEstQuat[2];
-	J62 = twob_xEstQuat[3] - 2.0f * twob_xEstQuat[1];
-	J63 = twob_xEstQuat[0] - 2.0f * twob_xEstQuat[2];
-	J64 = twob_xEstQuat[1];
+        // Reference direction of Earth's magnetic field
+        hx = mag[0] * qwqw - _2qwmy * q.z + _2qwmz * q.y + mag[0] * qxqx + _2qx * mag[1] * q.y + _2qx * mag[2] * q.z - mag[0] * qyqy - mag[0] * qzqz;
+        hy = _2qwmx * q.z + mag[1] * qwqw - _2qwmz * q.x + _2qxmx * q.y - mag[1] * qxqx + mag[1] * qyqy + _2qy * mag[2] * q.z - mag[1] * qzqz;
+        _2bx = sqrt(hx * hx + hy * hy);
+        _2bz = -_2qwmx * q.y + _2qwmy * q.x + mag[2] * qwqw + _2qxmx * q.z - mag[2] * qxqx + _2qy * mag[1] * q.z - mag[2] * qyqy + mag[2] * qzqz;
+        _4bx = 2.0f * _2bx;
+        _4bz = 2.0f * _2bz;
 
-	// compute and normalise the gradient
-	QuatHatDot[0] = J14_21 * f[1] - J11_24 * f[0] - J41 * f[3] - J51 * f[4] + J61 * f[5];
-	QuatHatDot[1] = J12_23 * f[0] + J13_22 * f[1] - J32 * f[2] + J42 * f[3] + J52 * f[4] + J62 * f[5];
-	QuatHatDot[2] = J12_23 * f[1] - J33 * f[2] - J13_22 * f[0] - J43 * f[3] + J53 * f[4] + J63 * f[5];
-	QuatHatDot[3] = J14_21 * f[0] + J11_24 * f[1] - J44 * f[3] - J54 * f[4] + J64 * f[5];
+        // Gradient decent algorithm corrective step
+        s0 = -_2qy * (2.0f * qxqz - _2qwqy - acc[0]) + _2qx * (2.0f * qwqx + _2qyqz - acc[1]) - _2bz * q.y * (_2bx * (0.5f - qyqy - qzqz) + _2bz * (qxqz - qwqy) - mag[0]) + (-_2bx * q.z + _2bz * q.x) * (_2bx * (qxqy - qwqz) + _2bz * (qwqx + qyqz) - mag[1]) + _2bx * q.y * (_2bx * (qwqy + qxqz) + _2bz * (0.5f - qxqx - qyqy) - mag[2]);
+        s1 = _2qz * (2.0f * qxqz - _2qwqy - acc[0]) + _2qw * (2.0f * qwqx + _2qyqz - acc[1]) - 4.0f * q.x * (1 - 2.0f * qxqx - 2.0f * qyqy - acc[2]) + _2bz * q.z * (_2bx * (0.5f - qyqy - qzqz) + _2bz * (qxqz - qwqy) - mag[0]) + (_2bx * q.y + _2bz * q.w) * (_2bx * (qxqy - qwqz) + _2bz * (qwqx + qyqz) - mag[1]) + (_2bx * q.z - _4bz * q.x) * (_2bx * (qwqy + qxqz) + _2bz * (0.5f - qxqx - qyqy) - mag[2]);
+        s2 = -_2qw * (2.0f * qxqz - _2qwqy - acc[0]) + _2qz * (2.0f * qwqx + _2qyqz - acc[1]) - 4.0f * q.y * (1 - 2.0f * qxqx - 2.0f * qyqy - acc[2]) + (-_4bx * q.y - _2bz * q.w) * (_2bx * (0.5f - qyqy - qzqz) + _2bz * (qxqz - qwqy) - mag[0]) + (_2bx * q.x + _2bz * q.z) * (_2bx * (qxqy - qwqz) + _2bz * (qwqx + qyqz) - mag[1]) + (_2bx * q.w - _4bz * q.y) * (_2bx * (qwqy + qxqz) + _2bz * (0.5f - qxqx - qyqy) - mag[2]);
+        s3 = _2qx * (2.0f * qxqz - _2qwqy - acc[0]) + _2qy * (2.0f * qwqx + _2qyqz - acc[1]) + (-_4bx * q.z + _2bz * q.x) * (_2bx * (0.5f - qyqy - qzqz) + _2bz * (qxqz - qwqy) - mag[0]) + (-_2bx * q.w + _2bz * q.y) * (_2bx * (qxqy - qwqz) + _2bz * (qwqx + qyqz) - mag[1]) + _2bx * q.x * (_2bx * (qwqy + qxqz) + _2bz * (0.5f - qxqx - qyqy) - mag[2]);
+        recipNorm = invSqrt(s0 * s0 + s1 * s1 + s2 * s2 + s3 * s3); // normalise step magnitude
+        s0 *= recipNorm;
+        s1 *= recipNorm;
+        s2 *= recipNorm;
+        s3 *= recipNorm;
 
-	norm = 1.0f / sqrtf(QuatHatDot[0] * QuatHatDot[0] + QuatHatDot[1] * QuatHatDot[1] + QuatHatDot[2] * QuatHatDot[2] + QuatHatDot[3] * QuatHatDot[3]);
-	QuatHatDot[0] *= norm;
-	QuatHatDot[1] *= norm;
-	QuatHatDot[2] *= norm;
-	QuatHatDot[3] *= norm;
+        // Apply feedback step
+        qDot.w -= beta * s0;
+        qDot.x -= beta * s1;
+        qDot.y -= beta * s2;
+        qDot.z -= beta * s3;
+    }
 
-	gyroErr[0] = twoEstQuat[0] * QuatHatDot[1] - twoEstQuat[1] * QuatHatDot[0] - twoEstQuat[2] * QuatHatDot[3] + twoEstQuat[3] * QuatHatDot[2];
-	gyroErr[1] = twoEstQuat[0] * QuatHatDot[2] + twoEstQuat[1] * QuatHatDot[3] - twoEstQuat[2] * QuatHatDot[0] - twoEstQuat[3] * QuatHatDot[1];
-	gyroErr[2] = twoEstQuat[0] * QuatHatDot[3] - twoEstQuat[1] * QuatHatDot[2] + twoEstQuat[2] * QuatHatDot[1] - twoEstQuat[3] * QuatHatDot[0];
+    // Integrate rate of change of quaternion to yield quaternion
+    q.w += qDot.w * delta;
+    q.x += qDot.x * delta;
+    q.y += qDot.y * delta;
+    q.z += qDot.z * delta;
 
-	gyroBias[0] = gyroErr[0] * delta * zeta;
-	gyroBias[1] = gyroErr[1] * delta * zeta;
-	gyroBias[2] = gyroErr[2] * delta * zeta;
-	gyro[0] -= gyroBias[0];
-	gyro[1] -= gyroBias[1];
-	gyro[2] -= gyroBias[2];
+    // Normalise quaternion
+    recipNorm = invSqrt(q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z);
+    q.w *= recipNorm;
+    q.x *= recipNorm;
+    q.y *= recipNorm;
+    q.z *= recipNorm;
 
-	QuatDotOmega[0] = - halfEstQuat[1] * gyro[0] - halfEstQuat[2] * gyro[1] - halfEstQuat[3] * gyro[2];
-	QuatDotOmega[1] =   halfEstQuat[0] * gyro[0] + halfEstQuat[2] * gyro[2] - halfEstQuat[3] * gyro[1];
-	QuatDotOmega[2] =   halfEstQuat[0] * gyro[1] - halfEstQuat[1] * gyro[2] + halfEstQuat[3] * gyro[0];
-	QuatDotOmega[3] =   halfEstQuat[1] * gyro[2] + halfEstQuat[2] * gyro[1] - halfEstQuat[2] * gyro[0];
+//    estQuat[0] = q.w;
+//    estQuat[1] = q.x;
+//    estQuat[2] = q.y;
+//    estQuat[3] = q.z;
 
-	estQuat[0] += (QuatDotOmega[0] - (beta * QuatHatDot[0])) * delta;
-	estQuat[1] += (QuatDotOmega[1] - (beta * QuatHatDot[1])) * delta;
-	estQuat[2] += (QuatDotOmega[2] - (beta * QuatHatDot[2])) * delta;
-	estQuat[3] += (QuatDotOmega[3] - (beta * QuatHatDot[3])) * delta;
 
-	norm = 1.0f / sqrtf(estQuat[0] * estQuat[0] + estQuat[1] * estQuat[1] + estQuat[2] * estQuat[2] + estQuat[3] * estQuat[3]);
-	estQuat[0] *= norm;
-	estQuat[1] *= norm;
-	estQuat[2] *= norm;
-	estQuat[3] *= norm;
-
-	h[0] = twomag[0] * (0.5f - estQuat[2] * estQuat[2] - estQuat[3] * estQuat[3]) + twomag[1] * (estQuat[1] * estQuat[2] - estQuat[0] * estQuat[3]) + twomag[2] * (estQuat[1] * estQuat[3] + estQuat[0] * estQuat[2]);
-	h[1] = twomag[0] * (estQuat[1] * estQuat[2] + estQuat[0] * estQuat[3]) + twomag[1] * (0.5f - estQuat[1] * estQuat[1] - estQuat[3] * estQuat[3]) + twomag[2] * (estQuat[2] * estQuat[3] - estQuat[0] * estQuat[1]);
-	h[2] = twomag[0] * (estQuat[1] * estQuat[3] - estQuat[0] * estQuat[2]) + twomag[1] * (estQuat[2] * estQuat[3] + estQuat[0] * estQuat[1]) + twomag[2] * (0.5f - estQuat[1] * estQuat[1] - estQuat[2] * estQuat[2]);
-
-	b_x = sqrtf(h[0] * h[0] + h[1] * h[1]);
-	b_z = h[2];
 }
 
 //https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles#Source_code_2
-void quat2rpy(float *Q, RPY *E) {
+void quat2rpy(Quaternion *Q, RPY *E) {
 
-	E->roll = atan2f( (2.0f * (Q[0] * Q[1] + Q[2] * Q[3])), (1.0f - 2.0f * (Q[1] * Q[1] + Q[2] * Q[2])) );
-	E->pitch = 2.0f * atan2f( sqrtf(1.0f + 2.0f * (Q[0] * Q[2] - Q[1] * Q[3])), sqrtf(1.0f - 2.0f * (Q[0] * Q[2] - Q[1] * Q[3])) ) - M_PI/2;
-	E->yaw = atan2f( (2.0f * (Q[0] * Q[3] + Q[1] * Q[2])), (1.0f - 2.0f * (Q[2] * Q[2] + Q[3] * Q[3])) );
+	E->roll = atan2f( (2.0f * (Q->w * Q->x + Q->y * Q->z)), (1.0f - 2.0f * (Q->x * Q->x + Q->y * Q->y)) );
+	E->pitch = 2.0f * atan2f( sqrtf(1.0f + 2.0f * (Q->w * Q->y - Q->x * Q->z)), sqrtf(1.0f - 2.0f * (Q->w * Q->y - Q->x * Q->z)) ) - M_PI/2;
+	E->yaw = atan2f( (2.0f * (Q->w * Q->z + Q->x * Q->y)), (1.0f - 2.0f * (Q->y * Q->y + Q->z * Q->z)) );
 
 }

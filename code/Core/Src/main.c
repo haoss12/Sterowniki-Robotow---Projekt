@@ -78,6 +78,8 @@ int16_t mr[3] = {0, 0, 0};
 int16_t ar[3] = {0, 0, 0};
 float gr[3]  = {0.0f, 0.0f, 0.0f};
 
+Quaternion q = {1.0f, 0.0f, 0.0f, 0.0f};
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -162,12 +164,6 @@ int main(void)
 	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 480);
 }
 
-b_x = 1.0f;
-b_z = 0.0f;
-gyroBias[0] = 0.0f;
-gyroBias[1] = 0.0f;
-gyroBias[2] = 0.0f;
-
 r = 0.0f;
 p = 0.0f;
 y = 0.0f;
@@ -223,14 +219,19 @@ HAL_Delay(1000);
 //		g[0] = g[0] * GYRO_SENSITIVITY * M_PI / 180.0f * delta;
 //		g[1] = g[1] * GYRO_SENSITIVITY * M_PI / 180.0f * delta;
 //		g[2] = g[2] * GYRO_SENSITIVITY * M_PI / 180.0f * delta;
+
 		updateIMU(mr, ar, gr, a, g, m);
-		updateQuat(g, a, m, quat);
-		quat2rpy(quat, &euler);
+		g[0] = g[0] * M_PI / 180.0f * delta;
+		g[1] = g[1] * M_PI / 180.0f * delta;
+		g[2] = g[2] * M_PI / 180.0f * delta;
+		updateQuat(g, a, m);
+		quat2rpy(&q, &euler);
 		r = euler.roll 	* (180.0 / M_PI);
 		p = euler.pitch * (180.0 / M_PI);
 		y = euler.yaw 	* (180.0 / M_PI);
+
 //		printf("%f, %f, %f \r\n", g[0] * GYRO_SENSITIVITY, g[1] * GYRO_SENSITIVITY, g[2] * GYRO_SENSITIVITY);
-		printf("euler: r - %f, p - %f, y - %f \r\n", euler.roll * (180.0 / M_PI), euler.pitch * (180.0 / M_PI), euler.yaw * (180.0 / M_PI));
+		printf("euler: r - %f, p - %f, y - %f \r\n", r, p, y);
 //		printf("quat:  w - %f, x - %f, y - %f, z - %f \r\n", quat[0], quat[1], quat[2], quat[3]);
 //		angY -= 90.0f;
 //		remap(angX, &angXremapped, 90.0, 270.0, 160.0, 800.0);
