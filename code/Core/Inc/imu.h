@@ -38,6 +38,6 @@
 #define ACCHI32 -0.001753
 #define ACCHI33 0.995164
 
-void updateIMU(int16_t **mr, int16_t **ar, float **gr, float **a, float **g, float **m);
+void updateIMU(int16_t *mr, int16_t *ar, float *gr, float *a, float *g, float *m);
 
 #endif /* INC_IMU_H_ */
