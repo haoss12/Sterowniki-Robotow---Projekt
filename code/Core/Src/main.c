@@ -66,11 +66,17 @@ float quat[4] = {1.0f, 0.0f, 0.0f, 0.0f};
 RPY euler;
 float r, p, y;
 
+//calculated data from IMU
 float g[3];
 float a[3];
 float m[3];
-int16_t a_temp[3];
-int16_t m_temp[3];
+//int16_t a_temp[3];
+//int16_t m_temp[3];
+
+//Raw data for readings
+int16_t mr[3] = {0, 0, 0};
+int16_t ar[3] = {0, 0, 0};
+float gr[3]  = {0.0f, 0.0f, 0.0f};
 
 /* USER CODE END PV */
 
@@ -201,22 +207,23 @@ HAL_Delay(1000);
   {
 	  if(HAL_GetTick() - historic > sample_time){
 		historic = HAL_GetTick();
+
 		//IMU(&angX, &angY, &angZ);
-		BSP_GYRO_GetXYZ(g);
-		BSP_COMPASS_AccGetXYZ(a_temp);
-		BSP_COMPASS_MagGetXYZ(m_temp);
-		a[0] = (float)a_temp[0];
-		a[1] = (float)a_temp[1];
-		a[2] = (float)a_temp[2];
-
-		m[0] = (float)m_temp[0];
-		m[1] = (float)m_temp[1];
-		m[2] = (float)m_temp[2];
-
-		g[0] = g[0] * GYRO_SENSITIVITY * M_PI / 180.0f * delta;
-		g[1] = g[1] * GYRO_SENSITIVITY * M_PI / 180.0f * delta;
-		g[2] = g[2] * GYRO_SENSITIVITY * M_PI / 180.0f * delta;
-
+//		BSP_GYRO_GetXYZ(g);
+//		BSP_COMPASS_AccGetXYZ(a_temp);
+//		BSP_COMPASS_MagGetXYZ(m_temp);
+//		a[0] = (float)a_temp[0];
+//		a[1] = (float)a_temp[1];
+//		a[2] = (float)a_temp[2];
+//
+//		m[0] = (float)m_temp[0];
+//		m[1] = (float)m_temp[1];
+//		m[2] = (float)m_temp[2];
+//
+//		g[0] = g[0] * GYRO_SENSITIVITY * M_PI / 180.0f * delta;
+//		g[1] = g[1] * GYRO_SENSITIVITY * M_PI / 180.0f * delta;
+//		g[2] = g[2] * GYRO_SENSITIVITY * M_PI / 180.0f * delta;
+		updateIMU(mr, ar, gr, a, g, m);
 		updateQuat(g, a, m, quat);
 		quat2rpy(quat, &euler);
 		r = euler.roll 	* (180.0 / M_PI);
