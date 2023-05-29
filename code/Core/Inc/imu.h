@@ -38,6 +38,6 @@
 #define ACCHI32 -0.001753
 #define ACCHI33 0.995164
 
-void IMU(float *gyroX, float *gyroY, float *gyroZ, float *accX, float *accY, float *accZ, float *magX, float *magY, float *magZ);
+void IMU(float **a, float **g, float **m);
 
 #endif /* INC_IMU_H_ */
