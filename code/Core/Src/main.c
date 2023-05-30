@@ -45,6 +45,7 @@
 #define PRECISION 							 0.000001f
 #define REMAP_OK							 0
 #define REMAP_ERROR							 1
+#define ALPHA 								 0.98
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -63,7 +64,7 @@ float angY = 0.0f;
 float angZ = 0.0f;
 
 float quat[4] = {1.0f, 0.0f, 0.0f, 0.0f};
-RPY euler;
+RPY euler, eulerPrev;
 float r, p, y;
 
 //calculated data from IMU
@@ -226,6 +227,14 @@ HAL_Delay(1000);
 		g[2] = g[2] * M_PI / 180.0f * delta;
 		updateQuat(g, a, m);
 		quat2rpy(&q, &euler);
+
+		euler.roll = ALPHA * eulerPrev.roll + (1.0f - ALPHA) * euler.roll;
+		eulerPrev.roll = euler.roll;
+		euler.pitch = ALPHA * eulerPrev.pitch + (1.0f - ALPHA) * euler.pitch;
+		eulerPrev.pitch = euler.pitch;
+		euler.yaw = ALPHA * eulerPrev.yaw + (1.0f - ALPHA) * euler.yaw;
+		eulerPrev.yaw = euler.yaw;
+
 		r = euler.roll 	* (180.0 / M_PI);
 		p = euler.pitch * (180.0 / M_PI);
 		y = euler.yaw 	* (180.0 / M_PI);
