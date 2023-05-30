@@ -12,7 +12,7 @@
 #define OUT_LIM_MIN -500.0f
 #define INT_LIM_MAX 10.0f
 #define INT_LIM_MIN 10.0f
-#define _KP 4.0f
+#define _KP 6.0f
 #define _KI 0.05f
 #define _KD 0.5f
 

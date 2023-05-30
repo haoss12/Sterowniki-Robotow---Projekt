@@ -103,7 +103,6 @@ static inline void remap(float value, float *output, float min, float max, float
 
 void HAL_TIM_PeriodElapsedCallback ( TIM_HandleTypeDef *htim ) {
         if ( htim == &htim6 ) {
-        	HAL_GPIO_TogglePin(LD_G_GPIO_Port, LD_G_Pin);
         	flag = 1;
 //    		__HAL_TIM_SET_COUNTER(&htim6, 999);
         }
@@ -126,6 +125,7 @@ int main(void)
 	uint32_t address = 0;
 	float pid_out_sum = 0.0f;
 	uint8_t counter = 0;
+	uint8_t apogeeCounter = 0;
 	float servo_value = 0.0f;
 	uint32_t crc;
 
@@ -170,13 +170,13 @@ int main(void)
   HAL_Delay(200);
 
   //test of servos from -90 to 90 degrees
-for (int var = 160; var <= 800; var += 160) {
-	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, var);
-	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, var);
-	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, var);
-	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, var);
-	HAL_Delay(500);
-}
+//for (int var = 160; var <= 800; var += 160) {
+//	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, var);
+//	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, var);
+//	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, var);
+//	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, var);
+//	HAL_Delay(500);
+//}
 
 	// set servos in neutral position
 {
@@ -201,9 +201,9 @@ HAL_Delay(900);
 	#if USART_DEBUG
   	  	  printf("Start of memory erasing\r\n");
 	#endif
-    if (BSP_QSPI_Erase_Chip() != QSPI_OK) {
-  	  Error_Handler();
-    }
+//    if (BSP_QSPI_Erase_Chip() != QSPI_OK) {
+//  	  Error_Handler();
+//    }
 	#if USART_DEBUG
     	printf("End of memory erasing\r\n");
 	#endif
@@ -234,6 +234,19 @@ HAL_Delay(900);
 
 		// get new measurements from IMU
 		updateIMU(mr, ar, gr, a, g, m);
+
+		//check apogee
+		if((a[0] + a[1] + a[2]) < 0.1)
+		{
+			apogeeCounter++;
+		}
+		else {
+			apogeeCounter = 0;
+		}
+
+		if(apogeeCounter > 4) {
+        	HAL_GPIO_TogglePin(LD_G_GPIO_Port, LD_G_Pin);
+		}
 
 		// update quaternion by madgwick filter and recalculate it to euler angles
 		updateQuat(g, a, m);
