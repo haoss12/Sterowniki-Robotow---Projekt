@@ -19,6 +19,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "crc.h"
 #include "dma.h"
 #include "quadspi.h"
 #include "spi.h"
@@ -148,6 +149,7 @@ int main(void)
   MX_USART2_UART_Init();
   MX_TIM2_Init();
   MX_TIM6_Init();
+  MX_CRC_Init();
   /* USER CODE BEGIN 2 */
 
   // timer for PWM initialization
