@@ -44,4 +44,8 @@ void updateIMU(int16_t *mr, int16_t *ar, float *gr, float *a, float *g, float *m
 	m[1] = -(MAGHI21 * mag[0] + MAGHI22 * mag[1] + MAGHI23 * mag[2]);	//Axis swap
 	m[2] = MAGHI31 * mag[0] + MAGHI32 * mag[1] + MAGHI33 * mag[2];
 
+	g[0] = g[0] * M_PI / 180.0f * delta;
+	g[1] = g[1] * M_PI / 180.0f * delta;
+	g[2] = g[2] * M_PI / 180.0f * delta;
+
 }

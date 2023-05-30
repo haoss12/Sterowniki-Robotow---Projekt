@@ -66,24 +66,27 @@ float angZ = 0.0f;
 
 float quat[4] = {1.0f, 0.0f, 0.0f, 0.0f};
 RPY euler, eulerPrev;
-float r, p, y;
-float pid_out_temp;
+
+float r, p, y;		// for STM32CubeMonitor
+float pid_out_temp; // for STM32CubeMonitor
 
 //calculated data from IMU
 float g[3];
 float a[3];
 float m[3];
-//int16_t a_temp[3];
-//int16_t m_temp[3];
 
 //Raw data for readings
 int16_t mr[3] = {0, 0, 0};
 int16_t ar[3] = {0, 0, 0};
 float gr[3]  = {0.0f, 0.0f, 0.0f};
 
+const float delta = 0.01f;
+
 Quaternion q = {1.0f, 0.0f, 0.0f, 0.0f};
 
 PID controller = {.Kp = _KP, .Ki = _KI, .Kd = _KD};
+
+uint8_t flag;
 
 /* USER CODE END PV */
 
@@ -91,6 +94,15 @@ PID controller = {.Kp = _KP, .Ki = _KI, .Kd = _KD};
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 static inline void remap(float value, float *output, float min, float max, float r_min, float r_max);
+
+void HAL_TIM_PeriodElapsedCallback ( TIM_HandleTypeDef *htim ) {
+        if ( htim == &htim6 ) {
+        	HAL_GPIO_TogglePin(LD_G_GPIO_Port, LD_G_Pin);
+        	flag = 1;
+//    		__HAL_TIM_SET_COUNTER(&htim6, 999);
+        }
+}
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -107,12 +119,7 @@ int main(void)
   /* USER CODE BEGIN 1 */
 	uint32_t address = 0;
 	//uint16_t index;
-	uint16_t flag = 0;
-	uint8_t j = 0;
-	float angXremapped = 0.0f;
-	float angYremapped = 0.0f;
-	float angXremappedN = 0.0f;
-	float angYremappedN = 0.0f;
+//	uint16_t flag = 0;
 	const int sample_time = delta * 1000;
 
   /* USER CODE END 1 */
@@ -142,26 +149,28 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
+
+  // timer for PWM initialization
   HAL_TIM_Base_Start_IT(&htim2);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
 
-  HAL_Delay(1000);
+//  __HAL_TIM_SET_COUNTER(&htim6, 999);
+
+  HAL_Delay(200);
 
   //test of servos from -90 to 90 degrees
-
-//for (int var = 160; var <= 800; var += 160) {
-//	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, var);
-//	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, var);
-//	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, var);
-//	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, var);
-//	HAL_Delay(1000);
-//}
+for (int var = 160; var <= 800; var += 160) {
+	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, var);
+	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, var);
+	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, var);
+	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, var);
+	HAL_Delay(500);
+}
 
 	// set servos in neutral position
-
 {
 	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 480);
 	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 480);
@@ -175,14 +184,6 @@ y = 0.0f;
 
 HAL_Delay(1000);
 
-	// time for IMU to start calculating correctly
-
-//while(j < 100) {
-//	IMU(&angX, &angY, &angZ);
-//	++j;
-//	HAL_Delay(50);
-//}
-
   BSP_QSPI_Init();
 
   //BSP_QSPI_Erase_Chip();
@@ -191,14 +192,16 @@ HAL_Delay(1000);
 
   BSP_QSPI_Read(RxBuffer, address, COUNT(TxBuffer) - 1);
 
-	for (int i = 0; i < COUNT(TxBuffer) - 1; ++i) {
-		  if (RxBuffer[i] == TxBuffer[i]) {
-			  flag++;
-		  }
-	}
+//	for (int i = 0; i < COUNT(TxBuffer) - 1; ++i) {
+//		  if (RxBuffer[i] == TxBuffer[i]) {
+//			  flag++;
+//		  }
+//	}
 
 	BSP_GYRO_Init();
 	BSP_COMPASS_Init();
+
+	HAL_TIM_Base_Start_IT(&htim6);
 
   /* USER CODE END 2 */
 
@@ -206,16 +209,20 @@ HAL_Delay(1000);
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  if(HAL_GetTick() - historic > sample_time){
-		historic = HAL_GetTick();
+//	  if(HAL_GetTick() - historic > sample_time){
+//		historic = HAL_GetTick();
+	  if(flag == 1) {
 
+		flag = 0;
+
+		// get new measurements from IMU
 		updateIMU(mr, ar, gr, a, g, m);
-		g[0] = g[0] * M_PI / 180.0f * delta;
-		g[1] = g[1] * M_PI / 180.0f * delta;
-		g[2] = g[2] * M_PI / 180.0f * delta;
+
+		// update quaternion by madgwick filter and recalculate it to euler angles
 		updateQuat(g, a, m);
 		quat2rpy(&q, &euler);
 
+		// low pass filter
 		euler.roll = ALPHA * eulerPrev.roll + (1.0f - ALPHA) * euler.roll;
 		eulerPrev.roll = euler.roll;
 		euler.pitch = ALPHA * eulerPrev.pitch + (1.0f - ALPHA) * euler.pitch;
@@ -223,12 +230,15 @@ HAL_Delay(1000);
 		euler.yaw = ALPHA * eulerPrev.yaw + (1.0f - ALPHA) * euler.yaw;
 		eulerPrev.yaw = euler.yaw;
 
+		// rad to deg
 		r = euler.roll 	* (180.0 / M_PI);
 		p = euler.pitch * (180.0 / M_PI);
 		y = euler.yaw 	* (180.0 / M_PI);
 
+		// pid step for one axis
 		updatePID(0.0f, y);
 
+		// for STM32CubeMonitor
 		pid_out_temp = controller.out;
 
 
@@ -237,6 +247,7 @@ HAL_Delay(1000);
 		//printf("euler: r - %f, p - %f, y - %f \r\n", r, p, y);
 //		printf("quat:  w - %f, x - %f, y - %f, z - %f \r\n", quat[0], quat[1], quat[2], quat[3]);
 //		angY -= 90.0f;
+
 //		remap(angX, &angXremapped, 90.0, 270.0, 160.0, 800.0);
 //		remap(angY, &angYremapped, 90.0, 270.0, 160.0, 800.0);
 //		remap(angX, &angXremappedN, 90.0, 270.0, 800.0, 160.0);

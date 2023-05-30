@@ -16,6 +16,8 @@
 #define _KI 0.05f
 #define _KD 0.5f
 
+extern const float delta;
+
 typedef struct PID {
 	float Kp, Ki, Kd;
 

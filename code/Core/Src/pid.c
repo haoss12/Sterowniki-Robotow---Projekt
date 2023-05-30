@@ -6,7 +6,6 @@
  */
 
 #include "pid.h"
-#include "madgwick.h"
 
 void updatePID(float setpoint, float measurement) {
 

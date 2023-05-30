@@ -36,6 +36,8 @@
 #define ACCHI32 -0.001753
 #define ACCHI33 0.995164
 
+extern const float delta;
+
 void updateIMU(int16_t *mr, int16_t *ar, float *gr, float *a, float *g, float *m);
 
 #endif /* INC_IMU_H_ */
