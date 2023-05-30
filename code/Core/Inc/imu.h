@@ -6,10 +6,12 @@
 #include "../../../Drivers/BSP/STM32L476G-Discovery/stm32l476g_discovery_compass.h"
 #include <math.h>
 
+// Sensors constants
 #define ACC_SENSITIVITY  0.00061
 #define GYRO_SENSITIVITY 0.0175
 #define MAG_SENSITIVITY 0.058
 
+// Compass hard and soft iron values
 #define MAGSI1 -30.416148;
 #define MAGSI2 26.435598;
 #define MAGSI3 8.019681;
@@ -23,6 +25,7 @@
 #define MAGHI32 -0.000486
 #define MAGHI33 1.124874
 
+// Accelerometer hard and soft iron values
 #define ACCSI1 0.361457;
 #define ACCSI2 0.415663;
 #define ACCSI3 0.018694;
@@ -38,6 +41,7 @@
 
 extern const float delta;
 
+// read and pre-filter readings from IMU (MARG)
 void updateIMU(int16_t *mr, int16_t *ar, float *gr, float *a, float *g, float *m);
 
 #endif /* INC_IMU_H_ */

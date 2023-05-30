@@ -12,15 +12,12 @@
 #include <inttypes.h>
 
 //defined constants
-//#define delta 0.01f //sampling time
-#define gyroError 14.19957562	//M_PI * (6.0f / 180.0f) 	//gyroscope error in rad/s (5 deg/s)
-#define gyroDrift 0.09804329484f	//M_PI * (1.0f / 180.0f)	//gyroscope drift in rad/s^2 (0.2 deg/s^2) 0,09804329484
+#define gyroError 14.19957562		// gyroscope error in rad/s
+#define gyroDrift 0.09804329484f	//gyroscope drift in rad/s^2
 #define beta sqrt(3.0f / 4.0f) * gyroError
 #define zeta sqrt(3.0f / 4.0f) * gyroDrift
 
 extern const float delta;
-
-//highpass filter maybe k
 
 typedef struct RPY {
 	float roll;

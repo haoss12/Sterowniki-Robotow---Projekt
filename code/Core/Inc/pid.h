@@ -21,21 +21,17 @@ extern const float delta;
 typedef struct PID {
 	float Kp, Ki, Kd;
 
-	//float tau;
-
 	float integral;
 	float derivative;
 	float prevErr;
-	//float prevMeasure;
 
 	float out;
 
 } PID;
 
-extern PID controller; //
+extern PID controller;
 
-//void initPID();
-
+// update PID - single step
 void updatePID(float setpoint, float measurement);
 
 

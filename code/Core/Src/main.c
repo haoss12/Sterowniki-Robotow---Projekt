@@ -30,6 +30,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include <string.h>
 #include "imu.h"
 #include "madgwick.h"
 #include "pid.h"
@@ -48,6 +49,10 @@
 #define REMAP_OK							 0
 #define REMAP_ERROR							 1
 #define ALPHA 								 0.98
+#define USART_DEBUG 			0	// 1 - print to usart
+#define TEST_READ_AND_PRINT		0	// 1 - read data and print it
+#define TIME_COUNTING			0
+#define BUFFER_SIZE 			128
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -58,8 +63,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint8_t TxBuffer[] = "1234567890abcdefgh"; //
-uint8_t RxBuffer[COUNT(TxBuffer) - 1];
+char DataBuffer[BUFFER_SIZE];
+uint8_t ReadBuffer[BUFFER_SIZE];
 
 float angX = 0.0f;
 float angY = 0.0f;
@@ -119,9 +124,10 @@ int main(void)
 {
   /* USER CODE BEGIN 1 */
 	uint32_t address = 0;
-	//uint16_t index;
-//	uint16_t flag = 0;
-	const int sample_time = delta * 1000;
+	float pid_out_sum = 0.0f;
+	uint8_t counter = 0;
+	float servo_value = 0.0f;
+	uint32_t crc;
 
   /* USER CODE END 1 */
 
@@ -184,21 +190,32 @@ r = 0.0f;
 p = 0.0f;
 y = 0.0f;
 
-HAL_Delay(1000);
+HAL_GPIO_WritePin(LD_G_GPIO_Port, LD_G_Pin, 1);
+HAL_Delay(100);
+HAL_GPIO_WritePin(LD_G_GPIO_Port, LD_G_Pin, 0);
+HAL_Delay(900);
 
   BSP_QSPI_Init();
 
-  //BSP_QSPI_Erase_Chip();
+  // Clear memory
+	#if USART_DEBUG
+  	  	  printf("Start of memory erasing\r\n");
+	#endif
+    if (BSP_QSPI_Erase_Chip() != QSPI_OK) {
+  	  Error_Handler();
+    }
+	#if USART_DEBUG
+    	printf("End of memory erasing\r\n");
+	#endif
+    	HAL_GPIO_WritePin(LD_G_GPIO_Port, LD_G_Pin, 1);
+    	HAL_Delay(100);
+    	HAL_GPIO_WritePin(LD_G_GPIO_Port, LD_G_Pin, 0);
+    	HAL_Delay(200);
+    	HAL_GPIO_WritePin(LD_G_GPIO_Port, LD_G_Pin, 1);
+    	HAL_Delay(100);
+    	HAL_GPIO_WritePin(LD_G_GPIO_Port, LD_G_Pin, 0);
+    	HAL_Delay(200);
 
-  BSP_QSPI_Write(TxBuffer, address, COUNT(TxBuffer) - 1);
-
-  BSP_QSPI_Read(RxBuffer, address, COUNT(TxBuffer) - 1);
-
-//	for (int i = 0; i < COUNT(TxBuffer) - 1; ++i) {
-//		  if (RxBuffer[i] == TxBuffer[i]) {
-//			  flag++;
-//		  }
-//	}
 
 	BSP_GYRO_Init();
 	BSP_COMPASS_Init();
@@ -211,8 +228,6 @@ HAL_Delay(1000);
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-//	  if(HAL_GetTick() - historic > sample_time){
-//		historic = HAL_GetTick();
 	  if(flag == 1) {
 
 		flag = 0;
@@ -242,23 +257,39 @@ HAL_Delay(1000);
 
 		// for STM32CubeMonitor
 		pid_out_temp = controller.out;
+		pid_out_sum += controller.out;
+
+		  snprintf(DataBuffer, BUFFER_SIZE, "X %f %f %f %f", r, p, y, pid_out_temp);
+		  crc = HAL_CRC_Calculate(&hcrc, (void*)DataBuffer, strlen(DataBuffer));
+		  snprintf(DataBuffer, BUFFER_SIZE, "%s 0x%02x\r\n", DataBuffer, crc);
+
+		#if USART_DEBUG
+		  	  printf("%s", DataBuffer);
+		#endif
+
+		BSP_QSPI_Write((uint8_t*)DataBuffer, address, BUFFER_SIZE);	// write data to memory
 
 
+		#if TEST_READ_AND_PRINT
+			BSP_QSPI_Read(ReadBuffer, address, BUFFER_SIZE);
+			printf("%s", ReadBuffer);
+		#endif
 
-//		printf("%f, %f, %f \r\n", g[0] * GYRO_SENSITIVITY, g[1] * GYRO_SENSITIVITY, g[2] * GYRO_SENSITIVITY);
-		//printf("euler: r - %f, p - %f, y - %f \r\n", r, p, y);
-//		printf("quat:  w - %f, x - %f, y - %f, z - %f \r\n", quat[0], quat[1], quat[2], quat[3]);
-//		angY -= 90.0f;
+		address += BUFFER_SIZE;
+		counter++;
 
-//		remap(angX, &angXremapped, 90.0, 270.0, 160.0, 800.0);
-//		remap(angY, &angYremapped, 90.0, 270.0, 160.0, 800.0);
-//		remap(angX, &angXremappedN, 90.0, 270.0, 800.0, 160.0);
-//		remap(angY, &angYremappedN, 90.0, 270.0, 800.0, 160.0);
-//		angY += 90.0f;
-//		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, angXremapped);
-//		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, angXremappedN);
-//		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, angYremapped);
-//		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, angYremappedN);
+		if (counter == 4) {
+			pid_out_sum /= 4.0f;
+			remap(pid_out_sum, &servo_value, -500.0f, 500.0f, 320.0, 640.0);
+
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, servo_value);
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, servo_value);
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, servo_value);
+			__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, servo_value);
+
+			pid_out_sum = 0.0f;
+			counter = 0;
+		}
 
 		}
 
