@@ -9,8 +9,6 @@
 #define ACC_SENSITIVITY  0.00061
 #define GYRO_SENSITIVITY 0.0175
 #define MAG_SENSITIVITY 0.058
-#define ALPHA 0.95		//filtration rate
-#define DT 0.05			//time tick
 
 #define MAGSI1 -30.416148;
 #define MAGSI2 26.435598;

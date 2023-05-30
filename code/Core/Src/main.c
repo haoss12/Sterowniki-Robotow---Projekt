@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include "imu.h"
 #include "madgwick.h"
+#include "pid.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -66,6 +67,7 @@ float angZ = 0.0f;
 float quat[4] = {1.0f, 0.0f, 0.0f, 0.0f};
 RPY euler, eulerPrev;
 float r, p, y;
+float pid_out_temp;
 
 //calculated data from IMU
 float g[3];
@@ -80,6 +82,8 @@ int16_t ar[3] = {0, 0, 0};
 float gr[3]  = {0.0f, 0.0f, 0.0f};
 
 Quaternion q = {1.0f, 0.0f, 0.0f, 0.0f};
+
+PID controller = {.Kp = _KP, .Ki = _KI, .Kd = _KD};
 
 /* USER CODE END PV */
 
@@ -205,22 +209,6 @@ HAL_Delay(1000);
 	  if(HAL_GetTick() - historic > sample_time){
 		historic = HAL_GetTick();
 
-		//IMU(&angX, &angY, &angZ);
-//		BSP_GYRO_GetXYZ(g);
-//		BSP_COMPASS_AccGetXYZ(a_temp);
-//		BSP_COMPASS_MagGetXYZ(m_temp);
-//		a[0] = (float)a_temp[0];
-//		a[1] = (float)a_temp[1];
-//		a[2] = (float)a_temp[2];
-//
-//		m[0] = (float)m_temp[0];
-//		m[1] = (float)m_temp[1];
-//		m[2] = (float)m_temp[2];
-//
-//		g[0] = g[0] * GYRO_SENSITIVITY * M_PI / 180.0f * delta;
-//		g[1] = g[1] * GYRO_SENSITIVITY * M_PI / 180.0f * delta;
-//		g[2] = g[2] * GYRO_SENSITIVITY * M_PI / 180.0f * delta;
-
 		updateIMU(mr, ar, gr, a, g, m);
 		g[0] = g[0] * M_PI / 180.0f * delta;
 		g[1] = g[1] * M_PI / 180.0f * delta;
@@ -239,8 +227,14 @@ HAL_Delay(1000);
 		p = euler.pitch * (180.0 / M_PI);
 		y = euler.yaw 	* (180.0 / M_PI);
 
+		updatePID(0.0f, y);
+
+		pid_out_temp = controller.out;
+
+
+
 //		printf("%f, %f, %f \r\n", g[0] * GYRO_SENSITIVITY, g[1] * GYRO_SENSITIVITY, g[2] * GYRO_SENSITIVITY);
-		printf("euler: r - %f, p - %f, y - %f \r\n", r, p, y);
+		//printf("euler: r - %f, p - %f, y - %f \r\n", r, p, y);
 //		printf("quat:  w - %f, x - %f, y - %f, z - %f \r\n", quat[0], quat[1], quat[2], quat[3]);
 //		angY -= 90.0f;
 //		remap(angX, &angXremapped, 90.0, 270.0, 160.0, 800.0);
